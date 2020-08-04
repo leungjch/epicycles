@@ -14,9 +14,9 @@ You can also input numeric or variable values for the radii and velocities of th
 
 For example, to plot the **Square Wave**: 
 
-`2/(2*math.pi*2*(j+1))` in the radius input
+`200/(2*j+1)` in the radius input
 
-`2*(j+1)` for the velocity input.
+`2*j+1` for the velocity input.
 
 Some other cool Fourier Series:
 
