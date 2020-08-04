@@ -29,9 +29,10 @@ Some other cool Fourier Series:
 **Triangle path generator:** 
 
 `(j+1)%3==0 ? v=0: v=100/(pow(j+1,2))`
+
 `(j+1)%3==0 ? v=0: v=(j+1)*pow(-1,j%3+1)`
 
-**Weierstrass Fractal** (continuous everywhere, differentiable nowhere)
+**Weierstrass Fractal** (continuous everywhere, differentiable nowhere):
 
 `300/pow(3,j)`
 
