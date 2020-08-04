@@ -1,3 +1,7 @@
+let x = [];
+let fourierX;
+
+
 let time = 0;
 let nSliders = [];
 let n = 0;
@@ -6,6 +10,9 @@ let velocitySliders = [];
 let resetButtons = [];
 let radiusArr = [];
 let velocityArr = [];
+let phaseArr = [];
+
+let origPoint = [0,0];
 
 let radiusInputs = [];
 let velocityInputs = [];
@@ -22,14 +29,114 @@ let speed = 0.01;
 
 let path = [];
 let graph = [];
-
-let showPath = false;
+let periods = [];
+let lastTime = 0;
+periods.push(0);
+let periodSum = 0;
+let showPath_points = false;
+let showPath_lines = false;
 let showGraph = false;
-let showCircles = false; 
+let showCircles = true; 
+let C = 1;
+
+function median(numbers) {
+  // median of [3, 5, 4, 4, 1, 1, 2, 3] = 3
+  var median = 0, numsLen = numbers.length;
+  numbers.sort();
+
+  if (
+      numsLen % 2 === 0 // is even
+  ) {
+      // average of two middle numbers
+      median = (numbers[numsLen / 2 - 1] + numbers[numsLen / 2]) / 2;
+  } else { // is odd
+      // middle number only
+      median = numbers[(numsLen - 1) / 2];
+  }
+
+  return median;
+}
+
+class Complex {
+  constructor(a, b) {
+    this.re = a;
+    this.im = b;
+  }
+
+  add(c) {
+    this.re += c.re;
+    this.im += c.im;
+  }
+
+  mult(c) {
+    const re = this.re * c.re - this.im * c.im;
+    const im = this.re * c.im + this.im * c.re;
+    return new Complex(re, im);
+  }
+}
+
+function dft(x) {
+  const X = [];
+  const N = x.length;
+  for (let k = 0; k < N; k++) {
+    let sum = new Complex(0, 0);
+    for (let n = 0; n < N; n++) {
+      const phi = (TWO_PI * k * n) / N;
+      const c = new Complex(cos(phi), -sin(phi));
+      sum.add(x[n].mult(c));
+    }
+    sum.re = sum.re / N;
+    sum.im = sum.im / N;
+
+    let freq = k;
+    let amp = sqrt(sum.re * sum.re + sum.im * sum.im);
+    let phase = atan2(sum.im, sum.re);
+    X[k] = { re: sum.re, im: sum.im, freq, amp, phase };
+  }
+  return X;
+}
+
 function setup() {
   frameRate(120)
   c = createCanvas(WIDTH, HEIGHT);
+  print("hi")
+  const skip = 1;
+  print(drawing.length)
+  for (let l = 0; l < drawing.length; l += skip) {
+    const z = new Complex(drawing[l].x*0.01, drawing[l].y*0.01);
+    point(drawing[l].x*0.01, drawing[l]*0.01);
+    x.push(z);
+    print(l)
 
+  }
+
+  xy = x
+  // calculate fourier transform
+  fourierX = dft(x);
+  fourierX.sort((a, b) => b.amp - a.amp);
+
+  // turn DFT into epicycles
+  // comment out when you dont want to use FT
+  // for (let h = 0; h < fourierX.length; h++)
+  // {
+  //   velocityArr.push(fourierX[h].freq) 
+  //   radiusArr.push(fourierX[h].amp*100) 
+  //   phaseArr.push(fourierX[h].phase)
+  //   n+=1
+  // }
+function copyToClipboard(val){
+    var dummy = document.createElement("input");
+    dummy.style.display = 'none';
+    document.body.appendChild(dummy);
+
+    dummy.setAttribute("id", "dummy_id");
+    document.getElementById("dummy_id").value=val;
+    dummy.select();
+    document.execCommand("copy");
+    document.body.removeChild(dummy);
+}
+  // save fourier transformed points
+  console.log(JSON.stringify(fourierX))
   screenshotButton = createButton('save screenshot');
   screenshotButton.position(20, 45);
   screenshotButton.mousePressed(screenshot);
@@ -44,17 +151,21 @@ function setup() {
   graphCheckbox.position(120, 20)
   graphCheckbox.changed(toggleGraph);
 
-  pathCheckbox = createCheckbox('path', false);
+  pathCheckbox = createCheckbox('path_points', false);
   pathCheckbox.position(240, 20)
-  pathCheckbox.changed(togglePath);
+  pathCheckbox.changed(togglePath_points);
+
+  pathCheckbox = createCheckbox('path_lines', false);
+  pathCheckbox.position(360, 20)
+  pathCheckbox.changed(togglePath_lines);
 
 
 
-  circleCheckbox = createCheckbox('circles', false);
-  circleCheckbox.position(360, 20)
+  circleCheckbox = createCheckbox('circles', true);
+  circleCheckbox.position(480, 20)
   circleCheckbox.changed(toggleCircles);
 
-  timeSlider = createSlider(0, 0.55, 0.01, 0.0001);
+  timeSlider = createSlider(-0.01, 0.1, 0.01, 0.0001);
   timeSlider.position(20, 60);
   timeSlider.changed(resetGraphPath);
 
@@ -69,11 +180,11 @@ function setup() {
   buttonAddDup_1.mousePressed(function() { addEpicycle(true, 1);});
 
   buttonAddDup_50 = createButton('duplicate 50');
-  buttonAddDup_50.position(100, 80);
+  buttonAddDup_50.position(150, 80);
   buttonAddDup_50.mousePressed(function() { addEpicycle(true, 100);});
 
   buttonAddDup_100 = createButton('duplicate 100');
-  buttonAddDup_100.position(150, 80);
+  buttonAddDup_100.position(250, 80);
   buttonAddDup_100.mousePressed(function() { addEpicycle(true, 100);});
 
 
@@ -86,13 +197,22 @@ function setup() {
     showGraph = false;
   }
 }
-function togglePath() {
+function togglePath_points() {
   if (this.checked()) {
-    console.log('turning path on!');
-    showPath = true;
+    console.log('turning path points on!');
+    showPath_points = true;
   } else {
-    console.log('turning path off!');
-    showPath = false;
+    console.log('turning path points off!');
+    showPath_points = false;
+  }
+}
+function togglePath_lines() {
+  if (this.checked()) {
+    console.log('turning path lines on!');
+    showPath_lines = true;
+  } else {
+    console.log('turning path lines off!');
+    showPath_lines = false;
   }
 }
 function toggleCircles() {
@@ -112,9 +232,12 @@ function resetGraphPath()
 {
   path = [];
   graph = [];
+  time = 0;
+  periods = [0];
+  periodSum = 0;
+  periodAverage = 0;
 updateText();
 
-t = 0;
 }
 
 function resetEpicycle(j)
@@ -160,13 +283,15 @@ function draw() {
 
     let velocity = velocityArr[i];
     let radius = radiusArr[i];
+    let phase = phaseArr[i];
     // let velocity = velocityArr[i].value();
     // let radius = radiusArr[i].value();
 
     // print(radius);
     // print(velocity);
-    x +=  radius * cos(velocity * time);
-    y +=  radius * sin(velocity * time);
+    x +=  radius * cos(velocity * time + phase);
+    y +=  radius * sin(velocity * time + phase);
+
 
     if (showCircles)
     {
@@ -191,7 +316,19 @@ function draw() {
   graph.unshift(y);
 
 
-  if (showPath)
+  if (showPath_points)
+    {
+    beginShape();
+    strokeWeight(8);
+    stroke(71,131,183);
+    noFill();
+    for (let i = 0; i < path.length; i++) {
+      point(path[i][0], path[i][1]);
+    }
+    endShape();
+    strokeWeight(2);
+  }
+  if (showPath_lines)
     {
     beginShape();
     strokeWeight(8);
@@ -217,10 +354,20 @@ function draw() {
     }
     endShape();
   }
+    // calculate original point for future reference (period)
+    if (time == 0)
+    {
+      origPoint = [x,y];
+    }
 
-
-  time += timeSlider.value();
-
+    // dt = 1 * TWO_PI / n; // comment out when not using FT
+    dt = timeSlider.value()
+    time += dt;
+    // comment out when not using FT
+    // if (time > TWO_PI) {
+    //   time = 0;
+    //   path = [];
+    // }
   if (graph.length > GRAPHLIMIT) {
     graph.pop();
   }
@@ -228,8 +375,61 @@ function draw() {
     path.pop();
   }
 
+  // calculate mse
+  let mse = 0;
+  for (let l = 0; l < drawing.length; l++) {
+    mse_i = 0;
+    x = WIDTH/2;
+    y = HEIGHT/2;
+    for (let i = 0; i < xy.length; i++) {
+      // print(xy.length)
+      let prevx = x;
+      let prevy = y;
+  
+      let velocity = velocityArr[i];
+      let radius = radiusArr[i];
+      let phase = phaseArr[i];
+      // let velocity = velocityArr[i].value();
+      // let radius = radiusArr[i].value();
+  
+      // print(radius);
+      // print(velocity);
+      x +=  radius * cos(velocity * drawing[l].x*0.01 + phase);
+      y +=  radius * sin(velocity * drawing[l].x*0.01 + phase);
 
-  time += speed;
+    }
+    mse_i += Math.pow(drawing[l].x*0.01-x, 2) + Math.pow(drawing[l].y*0.01-y,2);
+
+
+  
+  }
+  mse = mse_i / drawing.length
+  print(mse)
+  // try to calculate the period
+  if (abs(origPoint[0] - x) < C  && abs(origPoint[1] - y) < C)
+  {
+    if (periods.length == 0)
+    {
+      diff = time;
+    }
+    else
+    {
+      diff = time-lastTime;
+      periodSum += diff;
+      periodAverage = periodSum/periods.length;
+  
+    }
+
+    // periods.push(diff);
+    //print("periodAverage: " + math.median(periods) + " length = " + periods.length + " period: " + diff  + " periodPi" + math.median(periods)/math.pi);
+    
+
+    // print("xy: " + x + " , "  + y);
+    lastTime = time;
+
+  }
+
+
 }
 
 function addEpicycle(isDuplicating, numEpicycles)
@@ -249,13 +449,13 @@ function addEpicycle(isDuplicating, numEpicycles)
         velSlider.position(200*n, HEIGHT-80);
         velSlider.input(function() { updateVelocity(tempInd, velSlider.value())})
         velSlider.changed(resetGraphPath);
-   
   
         radiusSliders.push(radSlider);
         velocitySliders.push(velSlider);
         radiusArr.push(inputRadius(0, tempInd));
         velocityArr.push(inputVelocity(0, tempInd));
-  
+        phaseArr.push(0)
+
         button = createButton('reset');
         button.position(200*n, HEIGHT-20);
         button.mousePressed(function() { resetEpicycle(tempInd);});
@@ -298,6 +498,7 @@ function addEpicycle(isDuplicating, numEpicycles)
       velocitySliders.push(velSlider);
       radiusArr.push(0);
       velocityArr.push(0);
+      phaseArr.push(0)
 
       button = createButton('reset');
       button.position(200*n, HEIGHT-20);
